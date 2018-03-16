@@ -22,6 +22,7 @@ import collections
 import datetime
 import json
 import locale
+import pathlib
 import re
 from base64 import b64decode, b64encode
 from decimal import Decimal, InvalidOperation
@@ -540,12 +541,14 @@ def identify_type(value):
     return detected
 
 
-def generate_schema(table, export_fields, output_format, output_fobj):
-    '''Generate table schema for a specific output format and write
+def generate_schema(table, export_fields, output_format, output_fobj,
+                    license='CC-BY-SA-4.0'):
+    """Generate table schema for a specific output format and write
 
     Current supported output formats: 'txt', 'sql' and 'django'.
     The table name and all fields names pass for a slugifying process (table
-    name is taken from file name).'''
+    name is taken from file name).
+    """
 
     if output_format == 'txt':
         from rows.plugins.dicts import import_from_dicts
@@ -584,20 +587,18 @@ def generate_schema(table, export_fields, output_format, output_fobj):
         output_fobj.write(sql)
 
     elif output_format == 'django':
-        import rows.fields as fields
-
         django_fields = {
-            fields.BinaryField: 'BinaryField',
-            fields.BoolField: 'BooleanField',
-            fields.IntegerField: 'IntegerField',
-            fields.FloatField: 'FloatField',
-            fields.PercentField: 'DecimalField',
-            fields.DateField: 'DateField',
-            fields.DatetimeField: 'DateTimeField',
-            fields.TextField: 'TextField',
-            fields.DecimalField: 'DecimalField',
-            fields.EmailField: 'EmailField',
-            fields.JSONField: 'JSONField',
+            BinaryField: 'BinaryField',
+            BoolField: 'BooleanField',
+            IntegerField: 'IntegerField',
+            FloatField: 'FloatField',
+            PercentField: 'DecimalField',
+            DateField: 'DateField',
+            DatetimeField: 'DateTimeField',
+            TextField: 'TextField',
+            DecimalField: 'DecimalField',
+            EmailField: 'EmailField',
+            JSONField: 'JSONField',
         }
         table_name = table.name
         if table_name == 'table1':
@@ -606,8 +607,8 @@ def generate_schema(table, export_fields, output_format, output_fobj):
                              for word in table_name.split('_'))
 
         lines = ['from django.db import models']
-        if fields.JSONField in [table.fields[field_name]
-                                for field_name in export_fields]:
+        if JSONField in [table.fields[field_name]
+                         for field_name in export_fields]:
             lines.append('from django.contrib.postgres.fields import JSONField')
         lines.append('')
 
@@ -616,7 +617,7 @@ def generate_schema(table, export_fields, output_format, output_fobj):
             if field_name not in export_fields:
                 continue
 
-            if field_type is not fields.JSONField:
+            if field_type is not JSONField:
                 django_type = 'models.{}()'.format(django_fields[field_type])
             else:
                 django_type = 'JSONField()'
@@ -624,3 +625,97 @@ def generate_schema(table, export_fields, output_format, output_fobj):
 
         result = '\n'.join(lines) + '\n'
         output_fobj.write(result)
+
+    elif output_format == 'datapackage':
+        import rows.utils
+
+        datapackage_fields = {
+            BinaryField: 'any',
+            BoolField: 'boolean',
+            IntegerField: 'integer',
+            FloatField: 'number',
+            PercentField: 'number',
+            DateField: 'date',
+            DatetimeField: 'datetime',
+            TextField: 'string',
+            DecimalField: 'number',
+            EmailField: 'string',
+            JSONField: 'object',
+        }
+        datapackage_options = {
+            PercentField: {'bareNumber': False},
+        }
+        fields = []
+        for field_name, field_type in table.fields.items():
+            if field_name not in export_fields:
+                continue
+
+            field = {
+                'name': field_name,
+                'description': field_name.replace('_', ' ').title(),
+                'type': datapackage_fields[field_type],
+            }
+            if field_type in datapackage_options:
+                field.update(datapackage_options[field_type])
+            fields.append(field)
+
+        name = table.name.replace('_', '-')
+        extension = table.meta['imported_from']
+        licenses = {
+            'ODC-PDDL-1.0': {
+                'path': 'https://opendatacommons.org/licenses/pddl/',
+                'title': 'Open Data Commons Public Domain Dedication and License (PDDL)',
+            },
+            'ODC-AL-1.0': {
+                'path': 'https://opendatacommons.org/licenses/by/',
+                'title': 'Open Data Commons Attribution License',
+            },
+            'ODC-ODBL-1.0': {
+                'path': 'https://opendatacommons.org/licenses/odbl/',
+                'title': 'Open Data Commons Open Database License (ODbL)',
+            },
+            'CC-BY-4.0': {
+                'path': 'https://creativecommons.org/licenses/by/4.0/',
+                'title': 'Creative Commons Attribution (CC BY)',
+            },
+            'CC-BY-SA-4.0': {
+                'path': 'https://creativecommons.org/licenses/by-sa/4.0/',
+                'title': 'Creative Commons Attribution-ShareAlike (CC BY-SA)',
+            },
+            'CC-BY-ND-4.0': {
+                'path': 'https://creativecommons.org/licenses/by-nd/4.0/',
+                'title': 'Creative Commons Attribution-NoDerivs (CC BY-ND)',
+            },
+            'CC-BY-NC-4.0': {
+                'path': 'https://creativecommons.org/licenses/by-nc/4.0/',
+                'title': 'Creative Commons Attribution-NonCommercial (CC BY-NC)',
+            },
+            'CC-BY-NC-SA-4.0': {
+                'path': 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
+                'title': 'Creative Commons Attribution-NonCommercial-ShareAlike (CC BY-NC-SA)',
+            },
+            'CC-BY-NC-ND-4.0': {
+                'path': 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
+                'title': 'Creative Commons Attribution-NonCommercial-NoDerivs (CC BY-NC-ND)',
+            },
+        }
+        license_data = licenses[license]
+        license = {'name': license}
+        license.update(license_data)
+        output_fobj.write(json.dumps({
+            'title': name.replace('-', ' ').title(),
+            'name': name,
+            'licenses': [license],
+            'sources': [],
+            'contributors': [],
+            'resources': [{
+                'name': name,
+                'path': pathlib.Path(table.meta['filename']).name,
+                'format': extension,
+                'mediatype': rows.utils.FILE_EXTENSIONS[extension],
+                'schema': {
+                    'fields': fields,
+                },
+            }],
+        }, indent=2))
+        # TODO: may add more resources if have more than one file

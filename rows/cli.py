@@ -396,7 +396,7 @@ def query(input_encoding, output_encoding, input_locale, output_locale,
 @click.option('--input-locale')
 @click.option('--verify-ssl', default=True, type=bool)
 @click.option('-f', '--format', 'output_format', default='txt',
-              type=click.Choice(('txt', 'sql',  'django')))
+              type=click.Choice(('txt', 'sql',  'django', 'datapackage')))
 @click.option('--fields',
               help='A comma-separated list of fields to inspect')
 @click.option('--fields-exclude',
