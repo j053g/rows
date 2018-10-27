@@ -37,11 +37,13 @@ class PluginSqliteTestCase(utils.RowsTestMixIn, unittest.TestCase):
     file_extension = 'sqlite'
     filename = 'tests/data/all-field-types.sqlite'
     assert_meta_encoding = False
-    override_fields = {'percent_column': fields.FloatField,
-                       'bool_column': fields.IntegerField, }
-    # SQLite does not support "Decimal" type, so `PercentField` will be
-    # identified as a float and also does not support "boolean" type, so it's
-    # saved as integer internally
+    override_fields = {
+        # SQLite does not support "Decimal" type, so `PercentField` will be
+        # identified as a float and also does not support "boolean" type, so
+        # it's saved as integer internally
+        'bool_column': fields.IntegerField,
+        'percent_column': fields.FloatField,
+    }
 
     def test_imports(self):
         self.assertIs(rows.import_from_sqlite,
@@ -202,6 +204,6 @@ class PluginSqliteTestCase(utils.RowsTestMixIn, unittest.TestCase):
         rows.export_to_sqlite(table, ':memory:', callback=myfunc, batch_size=3)
         self.assertEqual(myfunc.call_count, 4)
         self.assertEqual(
-            [x[0][0] for x in myfunc.call_args_list],
-            [3, 6, 9, 10]
+            [(x[0][0], x[0][1]) for x in myfunc.call_args_list],
+            [(3, 3), (3, 6), (3, 9), (1, 10)]
         )

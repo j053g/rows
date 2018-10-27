@@ -20,7 +20,7 @@ work on other versions too).
 
 ## Core Values
 
-- Simple, easy and flexible API
+- Simple, easy and flexible to use
 - Code quality
 - Don't Repeat Yourself
 
@@ -115,11 +115,11 @@ guarantee API backwards compatibility on `0.x.y` versions.
 
 ## License
 
-This library is released under the [GNU General Public License version
-3][gpl3].
+This library is released under the [GNU Lesser General Public License version
+3][lgpl3].
 
 
-[doc-cli]: command-line-interface.md
+[doc-cli]: cli.md
 [doc-contributing]: contributing.md
 [doc-installing]: installing.md
 [doc-links]: links.md
@@ -128,7 +128,7 @@ This library is released under the [GNU General Public License version
 [doc-plugins]: plugins.md
 [doc-changelog]: changelog.md
 [doc-quick-start]: quick-start.md
-[gpl3]: http://www.gnu.org/licenses/gpl-3.0.html
+[lgpl3]: http://www.gnu.org/licenses/lgpl-3.0.html
 [rows-issue-103]: https://github.com/turicas/rows/issues/103
 [rows]: https://github.com/turicas/rows/
 [semver]: http://semver.org/

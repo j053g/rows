@@ -1,6 +1,6 @@
 # coding: utf-8
 
-# Copyright 2014-2017 Álvaro Justen <https://github.com/turicas/rows/>
+# Copyright 2014-2018 Álvaro Justen <https://github.com/turicas/rows/>
 
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Lesser General Public License as published by
@@ -19,6 +19,7 @@ from __future__ import unicode_literals
 
 from decimal import Decimal
 from io import BytesIO
+from numbers import Number
 
 from openpyxl import Workbook, load_workbook
 
@@ -28,8 +29,7 @@ from rows.plugins.utils import (create_table, get_filename_and_fobj,
 
 
 def _cell_to_python(cell):
-    '''Convert a PyOpenXL's `Cell` object to the corresponding Python object'''
-
+    """Convert a PyOpenXL's `Cell` object to the corresponding Python object."""
     value = cell.value
 
     if value == '=TRUE()':
@@ -44,14 +44,9 @@ def _cell_to_python(cell):
     elif cell.number_format.lower() == 'yyyy-mm-dd hh:mm:ss':
         return str(value).split('.')[0]
 
-    elif cell.number_format.endswith('%'):
-        if value is not None:
-            value = str(Decimal(str(value)) * 100)[:-2]
-            if value.endswith('.'):
-                value = value[:-1]
-            return '{}%'.format(value)
-        else:
-            return None
+    elif cell.number_format.endswith('%') and isinstance(value, Number):
+            value = Decimal(str(value))
+            return '{:%}'.format(value)
 
     elif value is None:
         return ''
@@ -61,17 +56,27 @@ def _cell_to_python(cell):
 
 
 def import_from_xlsx(filename_or_fobj, sheet_name=None, sheet_index=0,
-                     start_row=0, start_column=0, *args, **kwargs):
+                     start_row=0, start_column=0, end_row=None,
+                     end_column=None, *args, **kwargs):
+    """Return a rows.Table created from imported XLSX file."""
+    
     workbook = load_workbook(filename_or_fobj, data_only=True)
     if sheet_name is None:
         sheet_name = workbook.sheetnames[sheet_index]
     sheet = workbook[sheet_name]
 
-    start_row, end_row = max(start_row, sheet.min_row), sheet.max_row
-    start_col, end_col = max(start_column, sheet.min_column), sheet.max_column
+    # openpyxl library reads rows and columns starting from 1 and ending on
+    # sheet.max_row/max_col. rows uses another pattern: 0 to N - 1, so we need
+    # to adjust the ranges accordingly
+    min_row, min_col = sheet.min_row - 1, sheet.min_column - 1
+    max_row, max_col = sheet.max_row - 1, sheet.max_column - 1
+    start_row = max(start_row, min_row)
+    end_row = min(end_row or max_row, max_row)
+    start_col = max(start_column, min_col)
+    end_col = min(end_column or max_col, max_col)
     table_rows = [[_cell_to_python(sheet.cell(row=row_index, column=col_index))
-                   for col_index in range(start_col, end_col + 1)]
-                  for row_index in range(start_row, end_row + 1)]
+                   for col_index in range(start_col + 1, end_col + 2)]
+                  for row_index in range(start_row + 1, end_row + 2)]
 
     filename, _ = get_filename_and_fobj(filename_or_fobj, dont_open=True)
     metadata = {'imported_from': 'xlsx',
@@ -117,7 +122,8 @@ def _python_to_cell(field_types):
 
 def export_to_xlsx(table, filename_or_fobj=None, sheet_name='Sheet1', *args,
                    **kwargs):
-
+    """Export the rows.Table to XLSX file and return the saved file."""
+    
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = sheet_name
